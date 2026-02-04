@@ -1,27 +1,22 @@
 """
-Vercel Serverless Function 入口
-将 FastAPI 应用暴露给 Vercel
+Vercel Serverless Function - 简单 HTTP Handler
 """
 
+import json
+import os
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+# 设置 Python 路径
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 从同目录导入
-try:
-    # Vercel 环境
-    from api.igdb_client import create_client_from_env, IGDBClient
-    from api.detail_fetcher import create_fetcher_from_env, translate_game_names
-except ImportError:
-    # 本地环境
-    from igdb_client import create_client_from_env, IGDBClient
-    from detail_fetcher import create_fetcher_from_env, translate_game_names
+from igdb_client import create_client_from_env, IGDBClient
+from detail_fetcher import create_fetcher_from_env, translate_game_names
 
 
-# 知名厂商/系列列表
+# 知名厂商列表
 NOTABLE_DEVELOPERS = {
     "Nintendo", "Nintendo EPD", "Nintendo EAD",
     "Square Enix", "Square", "Enix",
@@ -68,47 +63,14 @@ NOTABLE_DEVELOPERS = {
 NOTABLE_HYPES_THRESHOLD = 10
 
 
-# 数据模型
-class GameBasic(BaseModel):
-    id: int
-    name: str
-    name_cn: Optional[str] = None
-    release_date: Optional[str] = None
-    developer: Optional[str] = None
-    publisher: Optional[str] = None
-    genres: list[str] = []
-    summary: Optional[str] = None
-    cover_url: Optional[str] = None
-    is_notable: bool = False
-
-
-class GameDetail(BaseModel):
-    name: str
-    directors: list[dict] = []
-    writers: list[dict] = []
-    composers: list[dict] = []
-    producers: list[dict] = []
-    series: Optional[str] = None
-    related_games: list[str] = []
-    highlights: list[str] = []
-
-
-class GamesResponse(BaseModel):
-    year: int
-    month: int
-    total: int
-    games: list[GameBasic]
-
-
-# 辅助函数
-def format_date(timestamp: Optional[int]) -> Optional[str]:
+def format_date(timestamp):
     if not timestamp:
         return None
     dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     return dt.strftime("%Y-%m-%d")
 
 
-def get_companies(game: dict, role: str = "developer") -> Optional[str]:
+def get_companies(game, role="developer"):
     involved = game.get("involved_companies", [])
     if not involved:
         return None
@@ -127,14 +89,14 @@ def get_companies(game: dict, role: str = "developer") -> Optional[str]:
     return ", ".join(companies) if companies else None
 
 
-def get_genres(game: dict) -> list[str]:
+def get_genres(game):
     genres = game.get("genres", [])
     if not genres:
         return []
     return [g.get("name", "") for g in genres if isinstance(g, dict) and g.get("name")]
 
 
-def get_cover_url(game: dict) -> Optional[str]:
+def get_cover_url(game):
     cover = game.get("cover", {})
     if isinstance(cover, dict) and cover.get("url"):
         url = cover["url"]
@@ -142,7 +104,7 @@ def get_cover_url(game: dict) -> Optional[str]:
     return None
 
 
-def is_notable_game(game: dict) -> bool:
+def is_notable_game(game):
     hypes = game.get("hypes") or 0
     if hypes >= NOTABLE_HYPES_THRESHOLD:
         return True
@@ -159,41 +121,33 @@ def is_notable_game(game: dict) -> bool:
     return False
 
 
-def convert_game(game: dict, cn_name: Optional[str] = None) -> GameBasic:
-    return GameBasic(
-        id=game.get("id", 0),
-        name=game.get("name", "Unknown"),
-        name_cn=cn_name,
-        release_date=format_date(game.get("first_release_date")),
-        developer=get_companies(game, "developer"),
-        publisher=get_companies(game, "publisher"),
-        genres=get_genres(game),
-        summary=game.get("summary"),
-        cover_url=get_cover_url(game),
-        is_notable=is_notable_game(game)
-    )
+def convert_game(game, cn_name=None):
+    return {
+        "id": game.get("id", 0),
+        "name": game.get("name", "Unknown"),
+        "name_cn": cn_name,
+        "release_date": format_date(game.get("first_release_date")),
+        "developer": get_companies(game, "developer"),
+        "publisher": get_companies(game, "publisher"),
+        "genres": get_genres(game),
+        "summary": game.get("summary"),
+        "cover_url": get_cover_url(game),
+        "is_notable": is_notable_game(game)
+    }
 
 
-# FastAPI 应用
-app = FastAPI(title="VGame Horizon API")
-
-
-@app.get("/api/games", response_model=GamesResponse)
-async def get_games(
-    year: int = Query(default=None),
-    month: int = Query(default=None, ge=1, le=12),
-    limit: int = Query(default=50, ge=1, le=100),
-    translate: bool = Query(default=True)
-):
-    """获取指定月份的 Switch 新游列表"""
+def handle_get_games(params):
+    """处理 /api/games 请求"""
     igdb_client = create_client_from_env()
     
     if not igdb_client:
-        raise HTTPException(status_code=503, detail="IGDB 服务不可用，请检查环境变量配置")
+        return {"error": "IGDB 服务不可用，请检查环境变量配置"}, 503
     
     now = datetime.now()
-    year = year or now.year
-    month = month or now.month
+    year = int(params.get("year", [str(now.year)])[0])
+    month = int(params.get("month", [str(now.month)])[0])
+    limit = int(params.get("limit", ["50"])[0])
+    translate = params.get("translate", ["true"])[0].lower() == "true"
     
     games = igdb_client.get_upcoming_games(
         platform_id=IGDBClient.PLATFORM_SWITCH,
@@ -215,24 +169,22 @@ async def get_games(
             cn_name = None
         game_list.append(convert_game(game, cn_name))
     
-    return GamesResponse(
-        year=year,
-        month=month,
-        total=len(game_list),
-        games=game_list
-    )
+    return {
+        "year": year,
+        "month": month,
+        "total": len(game_list),
+        "games": game_list
+    }, 200
 
 
-@app.get("/api/games/{game_name}/detail", response_model=GameDetail)
-async def get_game_detail(
-    game_name: str,
-    fallback_name: Optional[str] = Query(default=None)
-):
-    """获取游戏深度信息"""
+def handle_get_detail(game_name, params):
+    """处理 /api/games/{name}/detail 请求"""
     fetcher = create_fetcher_from_env()
     
     if not fetcher:
-        raise HTTPException(status_code=503, detail="LLM 服务不可用")
+        return {"error": "LLM 服务不可用"}, 503
+    
+    fallback_name = params.get("fallback_name", [None])[0]
     
     details = fetcher.fetch(game_name)
     
@@ -240,29 +192,64 @@ async def get_game_detail(
         details = fetcher.fetch(fallback_name)
     
     if not details:
-        return GameDetail(
-            name=game_name,
-            directors=[],
-            writers=[],
-            composers=[],
-            producers=[],
-            series=None,
-            related_games=[],
-            highlights=[]
-        )
+        return {
+            "name": game_name,
+            "directors": [],
+            "writers": [],
+            "composers": [],
+            "producers": [],
+            "series": None,
+            "related_games": [],
+            "highlights": []
+        }, 200
     
-    return GameDetail(
-        name=details.name,
-        directors=[{"name": d.name, "known_for": d.known_for} for d in details.directors],
-        writers=[{"name": w.name, "known_for": w.known_for} for w in details.writers],
-        composers=[{"name": c.name, "known_for": c.known_for} for c in details.composers],
-        producers=[{"name": p.name, "known_for": p.known_for} for p in details.producers],
-        series=details.series or None,
-        related_games=details.related_games,
-        highlights=details.highlights
-    )
+    return {
+        "name": details.name,
+        "directors": [{"name": d.name, "known_for": d.known_for} for d in details.directors],
+        "writers": [{"name": w.name, "known_for": w.known_for} for w in details.writers],
+        "composers": [{"name": c.name, "known_for": c.known_for} for c in details.composers],
+        "producers": [{"name": p.name, "known_for": p.known_for} for p in details.producers],
+        "series": details.series or None,
+        "related_games": details.related_games,
+        "highlights": details.highlights
+    }, 200
 
 
-# Vercel Serverless 适配
-from mangum import Mangum
-handler = Mangum(app, lifespan="off")
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        params = parse_qs(parsed.query)
+        
+        # CORS headers
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        
+        try:
+            if path == "/api/games" or path == "/api/games/":
+                data, status = handle_get_games(params)
+            elif path.startswith("/api/games/") and path.endswith("/detail"):
+                # 提取游戏名: /api/games/{name}/detail
+                parts = path.split("/")
+                game_name = parts[3] if len(parts) > 3 else ""
+                # URL 解码
+                from urllib.parse import unquote
+                game_name = unquote(game_name)
+                data, status = handle_get_detail(game_name, params)
+            else:
+                data, status = {"error": "Not found"}, 404
+        except Exception as e:
+            data, status = {"error": str(e)}, 500
+        
+        self.end_headers()
+        self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        return
+    
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+        return
