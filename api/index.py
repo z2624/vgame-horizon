@@ -3,12 +3,6 @@ Vercel Serverless Function 入口
 将 FastAPI 应用暴露给 Vercel
 """
 
-import sys
-import os
-
-# 将项目根目录添加到 Python 路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -16,8 +10,15 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from igdb_client import create_client_from_env, IGDBClient
-from detail_fetcher import create_fetcher_from_env, translate_game_names
+# 从同目录导入
+try:
+    # Vercel 环境
+    from api.igdb_client import create_client_from_env, IGDBClient
+    from api.detail_fetcher import create_fetcher_from_env, translate_game_names
+except ImportError:
+    # 本地环境
+    from igdb_client import create_client_from_env, IGDBClient
+    from detail_fetcher import create_fetcher_from_env, translate_game_names
 
 
 # 知名厂商/系列列表
