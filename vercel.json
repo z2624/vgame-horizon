@@ -3,11 +3,11 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "static/**",
-      "use": "@vercel/static"
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.9"
+      }
     }
   ],
   "routes": [
@@ -20,7 +20,11 @@
       "dest": "/static/$1"
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*\\.(js|css|ico|png|jpg|svg))",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/",
       "dest": "/static/index.html"
     }
   ]

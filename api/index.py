@@ -263,5 +263,6 @@ async def get_game_detail(
     )
 
 
-# Vercel 需要的 handler
-handler = app
+# Vercel Serverless 适配
+from mangum import Mangum
+handler = Mangum(app, lifespan="off")
