@@ -3,24 +3,36 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "runtime": "python3.9"
-      }
+      "use": "@vercel/python"
+    },
+    {
+      "src": "static/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/api/games/(.*)/detail",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/api/games",
+      "dest": "/api/index.py"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/api/index.py"
     },
     {
-      "src": "/static/(.*)",
+      "src": "/(.*\\.js)",
       "dest": "/static/$1"
     },
     {
-      "src": "/(.*\\.(js|css|ico|png|jpg|svg))",
+      "src": "/(.*\\.css)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*\\.html)",
       "dest": "/static/$1"
     },
     {
