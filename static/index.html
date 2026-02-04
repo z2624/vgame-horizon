@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VGame Horizon - Switch 新游时间线</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部标题 -->
+        <header class="header">
+            <h1 class="logo">VGame Horizon</h1>
+            <p class="subtitle">Switch 新游时间线</p>
+        </header>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar" id="filterBar" style="display: none;">
+            <div class="filter-scroll" id="filterScroll">
+                <button class="filter-chip active" data-genre="all">全部</button>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在加载游戏数据...</p>
+        </div>
+
+        <!-- 游戏列表 -->
+        <main class="game-list" id="gameList" style="display: none;">
+            <!-- 游戏卡片将通过 JS 动态插入 -->
+        </main>
+
+        <!-- 空状态 -->
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <p>本月暂无新游数据</p>
+        </div>
+
+        <!-- 底部月份选择器 -->
+        <nav class="bottom-nav">
+            <button class="nav-btn" id="prevMonth">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>上月</span>
+            </button>
+            <div class="nav-month" id="currentMonth">2026年2月</div>
+            <button class="nav-btn" id="nextMonth">
+                <span>下月</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </nav>
+
+        <!-- 游戏详情弹窗 -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal" id="modal">
+                <div class="modal-header">
+                    <h2 id="modalTitle">游戏详情</h2>
+                    <button class="modal-close" id="modalClose">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- 详情内容 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
